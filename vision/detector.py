@@ -5,7 +5,7 @@ from datetime import datetime
 import cv2
 
 # database connection
-with sqlite3.connect("video_data.db") as conn:
+with sqlite3.connect("intelligent_video_search.db") as conn:
     cursor = conn.cursor()
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS video_data (
@@ -13,13 +13,13 @@ with sqlite3.connect("video_data.db") as conn:
             video_path TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             duration TEXT,
-            fps TEXT,
+            fps TEXT
         )
     ''')
     conn.commit()
 
 # Active Theard 
-conn = sqlite3.connect("video_data.db", check_same_thread=False)
+conn = sqlite3.connect("intelligent_video_search.db", check_same_thread=False)
 cursor = conn.cursor()
 
 def log_to_database(video_path, duration, fps):
@@ -29,9 +29,10 @@ def log_to_database(video_path, duration, fps):
     ''', (video_path, timestamp, duration, fps))
     conn.commit()
 
-def process_video(frame):
+def process_video():
     model = YOLO("yolov8n.pt")
     video_path = 'uploaded_files/'
+    class_name = model.names
     cap = cv2.VideoCapture(video_path)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -53,13 +54,12 @@ def process_video(frame):
         else:
             continue
 
-        duration = total_frames/fps
+    duration = total_frames/fps
         # current_frame = cap.get(cv2.CAP_PROP_POS_FRAMES)
-            
 
     cap.release()
     log_to_database(video_path, duration, fps)
-    return video_path, duration, fps
+    return video_path, duration, fps,model
 
 
             

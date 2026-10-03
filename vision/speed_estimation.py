@@ -1,5 +1,31 @@
 import cv2
+import sqlite3
+from datetime import datetime
 
+
+with sqlite3.connect("intelligent_video_search.db") as conn:
+    cursor = conn.cursor()
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Event (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            video_path TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+            duration TEXT,
+            fps TEXT,
+        )
+    ''')
+    conn.commit()
+
+# Active Theard 
+conn = sqlite3.connect("intelligent_video_search.db", check_same_thread=False)
+cursor = conn.cursor()
+
+def log_to_database(video_path, duration, fps):
+    timestamp = datetime.now()
+    cursor.execute('''
+        INSERT INTO Event (video_path, timestamp, duration, fps) VALUES (?, ?, ?, ?)
+    ''', (video_path, timestamp, duration, fps))
+    conn.commit()
 # Threshold lines along the Y-axis
 LINE1_Y = 200  # Top Line
 LINE2_Y = 400  # Bottom Line
@@ -54,5 +80,8 @@ def estimate_speed(track_id, xyxy, cap):
         if dt > 0:
             speed = REAL_WORLD_DISTANCE / dt
             return speed, "upward"
+
+
+    
 
     return None, None

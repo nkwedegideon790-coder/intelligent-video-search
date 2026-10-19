@@ -1,31 +1,13 @@
 import cv2
-import sqlite3
-from datetime import datetime
+from vision.database import init_db
 
-with sqlite3.connect("intelligent_video_search.db") as conn:
-    cursor = conn.cursor()
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS speed_Event (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            timestamp REAL,
-            video_id INTEGER,
-            track_id INTEGER,
-            object_name TEXT,
-            kmh REAL
-
-        )
-    ''')
-    conn.commit()
-
-# Active Theard 
-conn = sqlite3.connect("intelligent_video_search.db", check_same_thread=False)
-cursor = conn.cursor()
-
+db_conn = init_db()
 def log_to_database(timestamp, video_id, track_id, object_name, kmh):
+    cursor = db_conn.cursor()
     cursor.execute('''
         INSERT INTO speed_Event (timestamp, video_id, track_id, object_name, kmh) VALUES (?, ?, ?, ?, ?)
     ''', (timestamp, video_id, track_id, object_name, kmh))
-    conn.commit()
+    db_conn.commit()
 # Threshold lines along the Y-axis
 LINE1_Y = 200  # Top Line
 LINE2_Y = 400  # Bottom Line

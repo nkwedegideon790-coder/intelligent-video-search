@@ -26,6 +26,17 @@ def init_db(db_name="intelligent_video_search.db"):
                 x1 REAL, y1 REAL, x2 REAL, y2 REAL
             )
         """)
+    conn.execute("""
+            CREATE TABLE IF NOT EXISTS speed_Event (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                timestamp REAL,
+                video_id INTEGER,
+                FOREIGN KEY (video_id) REFERENCES video_data(id) ON DELETE CASCADE,
+                track_id INTEGER,
+                object_name TEXT,
+                kmh REAL
+            )
+""")
     conn.commit()
     return conn
 

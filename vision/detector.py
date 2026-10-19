@@ -15,7 +15,6 @@ def process_video():
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
     FRAME_SKIP = 3
     frame_count = 0
-    fps = cap.get(cv2.CAP_PROP_FPS)
     total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     
     while True:
@@ -27,6 +26,7 @@ def process_video():
         if frame_count % FRAME_SKIP == 0:
             results = model(frame, imgsz=320, verbose=False)[0]
             detections = sv.Detections.from_ultralytics(results)
+            fps = cap.get(cv2.CAP_PROP_FPS)
             msec = cap.get(cv2.CAP_PROP_POS_MSEC)
             sec = msec/1000.0
             minutes = int(sec//60)
@@ -46,7 +46,7 @@ def process_video():
         ''', (video_path, timestamp, duration, fps))
     video_id = cursor.lastrowid
     conn.commit()
-    return video_path, duration, fps,model,video_id
+    return video_path, duration, fps,model,video_id,class_name,cap
 
 
             

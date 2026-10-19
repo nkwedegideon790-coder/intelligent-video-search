@@ -40,7 +40,7 @@ def track_objects_store(detections,class_name,db_conn,cap,video_id):
             
            
         db_conn.commit()
-        return tracked_detections,enter_time,seen_objects
+        return tracked_detections,enter_time,object_name
 
 
  # for track_id in current_ids:

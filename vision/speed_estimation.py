@@ -2,16 +2,17 @@ import cv2
 import sqlite3
 from datetime import datetime
 
-
 with sqlite3.connect("intelligent_video_search.db") as conn:
     cursor = conn.cursor()
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS Event (
+        CREATE TABLE IF NOT EXISTS speed_Event (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            video_path TEXT NOT NULL,
-            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            duration TEXT,
-            fps TEXT,
+            timestamp REAL,
+            video_id INTEGER,
+            track_id INTEGER,
+            object_name TEXT,
+            kmh REAL
+
         )
     ''')
     conn.commit()
@@ -20,11 +21,10 @@ with sqlite3.connect("intelligent_video_search.db") as conn:
 conn = sqlite3.connect("intelligent_video_search.db", check_same_thread=False)
 cursor = conn.cursor()
 
-def log_to_database(video_path, duration, fps):
-    timestamp = datetime.now()
+def log_to_database(timestamp, video_id, track_id, object_name, kmh):
     cursor.execute('''
-        INSERT INTO Event (video_path, timestamp, duration, fps) VALUES (?, ?, ?, ?)
-    ''', (video_path, timestamp, duration, fps))
+        INSERT INTO speed_Event (timestamp, video_id, track_id, object_name, kmh) VALUES (?, ?, ?, ?, ?)
+    ''', (timestamp, video_id, track_id, object_name, kmh))
     conn.commit()
 # Threshold lines along the Y-axis
 LINE1_Y = 200  # Top Line
@@ -36,7 +36,7 @@ REAL_WORLD_DISTANCE = 5  # meters
 tracker_history = {}
 
 
-def estimate_speed(track_id, xyxy, cap):
+def estimate_speed(track_id, xyxy, cap,object_name, video_id):
     """
     Estimates the speed of an object moving either upward or downward.
     
@@ -46,42 +46,57 @@ def estimate_speed(track_id, xyxy, cap):
     :return: Tuple (speed_mps, direction) if calculated, else (None, None)
     """
     # 1. Get current video timeline position in seconds
-    now = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
-
+    timestamp = cap.get(cv2.CAP_PROP_POS_MSEC) / 1000.0
+    kmh = None  # Initialize speed variable
+    direction = None  # Initialize direction variable
+    
     # 2. Calculate the center Y coordinate of the bounding box
     xmin, ymin, xmax, ymax = xyxy
     center_y = ymin + (ymax - ymin) / 2
 
     # If the object isn't registered yet, check where it enters the tracking zone
     if track_id not in tracker_history:
-        # DOWNWARD: Entered past top line but hasn't reached bottom line yet
-        if center_y >= LINE1_Y and center_y < LINE2_Y:
-            tracker_history[track_id] = {"start_time": now, "start_line": 1}
-        # UPWARD: Entered going up past bottom line but hasn't reached top line yet
-        elif center_y <= LINE2_Y and center_y > LINE1_Y:
-            tracker_history[track_id] = {"start_time": now, "start_line": 2}
-        return None, None
-
+        # # DOWNWARD: Entered past top line but hasn't reached bottom line yet
+        # if previous_y < LINE1_Y and center_y >= LINE1_Y:
+        tracker_history[track_id] = {"start_time": None, "start_line": None, "previous_y": center_y}
+    
     history = tracker_history[track_id]
-
+    previous_y =history["previous_y"]
+    if history["start_line"] is None:
+        if previous_y > LINE2_Y and center_y <= LINE2_Y:
+            history["start_time"] = timestamp
+            history["start_line"] = 2
+        elif previous_y < LINE1_Y and center_y >= LINE1_Y:
+            history["start_time"] = timestamp
+            history["start_line"] = 1
+    history["previous_y"] = center_y  # Update previous Y for next frame
     # 3. Check for completion of crossing
     # Case A: Object started at Line 1 (Top) and has now crossed Line 2 (Bottom) -> DOWNWARD
-    if history["start_line"] == 1 and center_y >= LINE2_Y:
-        dt = now - history["start_time"]
-        del tracker_history[track_id]  # Clear memory
-        if dt > 0:
-            speed = REAL_WORLD_DISTANCE / dt
-            return speed, "downward"
-
+    if history["start_line"] == 1 and previous_y < LINE2_Y  >= center_y:
+        if history["start_time"] is not None:
+            dt = timestamp - history["start_time"]
+            if dt > 0:
+                speed = REAL_WORLD_DISTANCE / dt
+                kmh = speed * 3.6
+                direction = "DOWNWARD"            
+        if track_id in tracker_history:
+            del tracker_history[track_id]  # Clear memory
     # Case B: Object started at Line 2 (Bottom) and has now crossed Line 1 (Top) -> UPWARD
-    elif history["start_line"] == 2 and center_y <= LINE1_Y:
-        dt = now - history["start_time"]
-        del tracker_history[track_id]  # Clear memory
-        if dt > 0:
-            speed = REAL_WORLD_DISTANCE / dt
-            return speed, "upward"
-
+    elif history["start_line"] == 2 and previous_y > LINE1_Y  >= center_y:
+        if history["start_time"] is not None:
+            dt = timestamp - history["start_time"]
+            if dt > 0:
+                speed = REAL_WORLD_DISTANCE / dt
+                kmh = speed * 3.6
+                direction = "UPWARD"
+        if track_id in tracker_history:
+            del tracker_history[track_id]  # Clear memory
 
     
+    
+    if kmh is not None : 
+        if kmh >= 30:  # Speed threshold in km/h
+            object_name = object_name
+            log_to_database(timestamp, video_id, track_id, object_name, kmh)
 
-    return None, None
+    return kmh, direction

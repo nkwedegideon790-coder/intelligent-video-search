@@ -14,24 +14,25 @@ def init_db(db_name="intelligent_video_search.db"):
             fps REAL
         )
     ''')
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("""
             CREATE TABLE IF NOT EXISTS track_logs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 track_id INTEGER,
                 video_id INTEGER,
-                FOREIGN KEY (video_id) REFERENCES video_data(id) ON DELETE CASCADE,
-                class_id INTEGER,
+                class_id REAL,
                 object_name TEXT,
-                enter_time  DATETIME,
+                enter_time DATETIME,
+                last_seen DATETIME,
                 x1 REAL, y1 REAL, x2 REAL, y2 REAL
             )
         """)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("""
             CREATE TABLE IF NOT EXISTS speed_Event (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 timestamp REAL,
                 video_id INTEGER,
-                FOREIGN KEY (video_id) REFERENCES video_data(id) ON DELETE CASCADE,
                 track_id INTEGER,
                 object_name TEXT,
                 kmh REAL

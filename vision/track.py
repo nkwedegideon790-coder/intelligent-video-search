@@ -1,16 +1,18 @@
+from __future__ import annotations
+
 import cv2
 import supervision as sv
-import sqlite3
 import datetime as datetime
 from database import init_db
+from speed_estimation import estimate_speed
 tracker = sv.ByteTrack()
 seen_objects = set()
 enter_time = {}
-# last_seen ={}
-# exit_timeout = 10
+last_seen ={}
+exit_timeout = 10
 conn = init_db()
 
-def track_objects_store(detections,class_name,db_conn,cap,video_id):
+def track_objects_store(detections,class_name,cap,video_id):
     global seen_objects
     tracked_detections = tracker.update_with_detections(detections)
     # current_ids = set([track_id for _,_,_,_, track_id in tracked_detections])
@@ -27,20 +29,26 @@ def track_objects_store(detections,class_name,db_conn,cap,video_id):
             object_name = class_name[class_id]
             track_id = int(track_id)  # Ensure track_id is an integer
             x1, y1, x2, y2 = bbox.tolist()
+            last_seen[track_id] = {
+                'last_seen': timestamp
+            }
             
-
+            for info in list(last_seen.items()):
+                seconds_since_seen = timestamp - info['last_seen'] 
+                if seconds_since_seen > exit_timeout:
+                    last_seen[track_id]
             if track_id not in seen_objects:
                 seen_objects.add(track_id)
                 enter_time[track_id] = timestamp
                 conn.execute("""
                          INSERT INTO track_logs 
-                         (track_id,video_id, class_id, object_name,enter_time, x1, y1, x2, y2)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     """, (int(track_id), int(video_id), int(class_id), object_name, enter_time[track_id], x1, y1, x2, y2))
+                         (track_id,video_id, class_id, object_name,enter_time,last_seen, x1, y1, x2, y2)
+                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                     """, (int(track_id), int(video_id), int(class_id), object_name, enter_time[track_id],last_seen[track_id], x1, y1, x2, y2))
             
            
-        db_conn.commit()
-        return tracked_detections,enter_time,object_name
+        conn.commit()
+        return tracked_detections,enter_time,object_name,last_seen
 
 
  # for track_id in current_ids:

@@ -1,5 +1,5 @@
 import cv2
-from vision.database import init_db
+from database import init_db
 
 db_conn = init_db()
 def log_to_database(timestamp, video_id, track_id, object_name, kmh):

@@ -35,6 +35,7 @@ async def upload_file(file: UploadFile, limit: int):
     if not os.path.exists(save_Dir):
         os.makedirs(save_Dir)
     video_path = os.path.join(save_Dir, file.filename)
+
     with open(video_path, "wb") as f:
         content = await file.read()
         f.write(content)
@@ -78,7 +79,7 @@ async def process_video_endpoint(video_id: int, background_tasks: BackgroundTask
     
     # If the video exists, pass its saved path and ID to your processing workflow.
     # We use FastAPI's BackgroundTasks so the client doesn't time out while YOLO runs.
-    background_tasks.add_task(process_and_track_video(video_id,video_path), video_path=video_path, video_id=video_id)
+    background_tasks.add_task(process_and_track_video, video_path, video_id)
     
     return {
         "message": "Video processing has started in the background",
@@ -89,4 +90,3 @@ async def process_video_endpoint(video_id: int, background_tasks: BackgroundTask
 
 
     
-

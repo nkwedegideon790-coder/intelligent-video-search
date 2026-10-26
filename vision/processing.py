@@ -1,6 +1,5 @@
 from detector import process_video
-from track import track_objects_store
-from database import init_db
+from track import TrackingState, track_objects_store
 # import requests
 # import os
 # from typing import Any, Optional
@@ -54,22 +53,20 @@ from database import init_db
 #     )
 
 
-def process_and_track_video(video_id,video_path):
-    # unpack all values returned
-    (
-     model,
-     class_name,
-     cap,
-     detections,
-     frame_count
+def process_and_track_video(video_path,video_id):
+    state = TrackingState()
 
+    def track_frame(detections, class_name, cap, frame_count):
+        track_objects_store(
+            detections,
+            class_name,
+            cap,
+            video_id,
+            frame_count,
+            state,
+        )
 
-            ) = process_video(video_path)
-    track_objects_store(detections,
-                        class_name,
-                        cap,
-                        video_id,
-                        frame_count)
-if __name__ == "__main__":
-    process_and_track_video()
-    print("processing complete")
+    try:
+        process_video(video_path, track_frame)
+    finally:
+        state.conn.close()

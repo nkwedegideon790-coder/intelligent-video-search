@@ -1,68 +1,63 @@
 from __future__ import annotations
-
+from dataclasses import dataclass, field
+import sqlite3
 import cv2
 import supervision as sv
-import datetime as datetime
 from database import init_db
-from speed_estimation import estimate_speed
-tracker = sv.ByteTrack()
-seen_objects = set()
-enter_time = {}
-last_seen ={}
-exit_timeout = 10
-conn = init_db()
 
-def track_objects_store(detections,class_name,cap,video_id):
-    global seen_objects
-    tracked_detections = tracker.update_with_detections(detections)
-    # current_ids = set([track_id for _,_,_,_, track_id in tracked_detections])
-    msec = cap.get(cv2.CAP_PROP_POS_MSEC)
-    sec = msec/1000.0
-    minutes = int(sec//60)
-    seconds = int(sec % 60)
-    timestamp = f'{minutes:02d}:{seconds:02d}'
-    
+
+@dataclass
+class TrackingState:
+    tracker: sv.ByteTrack = field(default_factory=sv.ByteTrack)
+    seen_objects: set[int] = field(default_factory=set)
+    enter_time: dict[int, str] = field(default_factory=dict)
+    conn: sqlite3.Connection = field(default_factory=init_db)
+
+
+def _timestamp(frame_count: int, fps: float) -> str:
+    sec = max(frame_count / fps, 0)
+    return f"{int(sec // 60):02d}:{int(sec % 60):02d}"
+
+fps_cache = {}
+
+def _get_fps(cap, video_id) -> float:
+    if video_id not in fps_cache:
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        fps_cache[video_id] = fps if fps and fps > 1 else 30.0  # fallback
+    return fps_cache[video_id]
+
+
+def track_objects_store(detections, class_name, cap, video_id, frame_count, state: TrackingState):
+    tracked_detections = state.tracker.update_with_detections(detections)
+    timestamp = _timestamp(frame_count, _get_fps(cap, video_id))
+
     if tracked_detections is not None:
-        labels=[]
-        # current_frame = int(cap.get(cv2.CAP_PROP_POS_FRAMES))
-        for bbox,class_id, track_id in zip(tracked_detections.xyxy,tracked_detections.class_id,tracked_detections.tracker_id):
+        for bbox, class_id, track_id in zip(
+            tracked_detections.xyxy,
+            tracked_detections.class_id,
+            tracked_detections.tracker_id,
+        ):
             object_name = class_name[class_id]
-            track_id = int(track_id)  # Ensure track_id is an integer
+            track_id = int(track_id)
             x1, y1, x2, y2 = bbox.tolist()
-            last_seen[track_id] = {
-                'last_seen': timestamp
-            }
-            
-            for info in list(last_seen.items()):
-                seconds_since_seen = timestamp - info['last_seen'] 
-                if seconds_since_seen > exit_timeout:
-                    last_seen[track_id]
-            if track_id not in seen_objects:
-                seen_objects.add(track_id)
-                enter_time[track_id] = timestamp
-                conn.execute("""
-                         INSERT INTO track_logs 
-                         (track_id,video_id, class_id, object_name,enter_time,last_seen, x1, y1, x2, y2)
-                         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                     """, (int(track_id), int(video_id), int(class_id), object_name, enter_time[track_id],last_seen[track_id], x1, y1, x2, y2))
-            
-           
-        conn.commit()
-        return tracked_detections,enter_time,object_name,last_seen
 
+            if track_id not in state.seen_objects:
+                state.seen_objects.add(track_id)
+                state.enter_time[track_id] = timestamp
+                state.conn.execute("""
+                    INSERT INTO track_logs (track_id, video_id, class_id, object_name, enter_time, x1, y1, x2, y2)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    track_id,
+                    int(video_id),
+                    int(class_id),
+                    object_name,
+                    state.enter_time[track_id],
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                ))
 
- # for track_id in current_ids:
-            #     if track_id not in seen_objects:
-            #         enter_time[track_id] = timestamp
-            #         seen_objects.add(track_id)
-            #         last_seen[track_id]
-
-            # for track_id in list(seen_objects):
-            #     if current_frame - last_seen.get(track_id,0) > exit_timeout:
-            #         duration = timestamp - enter_time.get(track_id,timestamp)
-            #         cursor.execute("""
-            #             INSERT INTO track_logs 
-            #             (track_id, class_id, object_name,enter_time, last_seen, duration x1, y1, x2, y2)
-            #             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            #         """, (int(track_id), int(class_id), object_name, int(enter_time), int(last_seen),int(duration), x1, y1, x2, y2))
-            
+    state.conn.commit()
+    return tracked_detections, state.enter_time

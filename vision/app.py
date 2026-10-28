@@ -22,12 +22,12 @@ def Video_logs(video_path: str, duration: float, fps: float) -> int:
     Registers the video in the database and returns the generated video_id.
     """
     cursor.execute('''
-        INSERT INTO video_data (video_path, duration, fps) 
-        VALUES (?, ?, ?)
+        INSERT INTO video_data (video_path, duration, fps, status)
+        VALUES (?, ?, ?, 'pending')
     ''', (video_path, duration, fps))
     video_id = cursor.lastrowid
     conn.commit()
-    return video_id,duration,fps
+    return video_id, duration, fps
 @app.post("/upload_video")
 async def upload_file(file: UploadFile, limit: int):
     save_Dir = "uploaded_files"
@@ -45,9 +45,55 @@ async def upload_file(file: UploadFile, limit: int):
     total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     duration = total_frames / fps if fps > 0 else 0
 
+    video_id, duration, fps = Video_logs(video_path, duration, fps)
+    return {
+        "video_id": video_id,
+        "duration": duration,
+        "fps": fps,
+        "video_path": video_path,
+        "status": "pending",
+    }
 
-    video_id = Video_logs(video_path, duration, fps)
-    return video_id,duration,fps,video_path
+
+@app.get("/videos/{video_id}/status")
+async def get_video_status(video_id: int):
+    conn = init_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id, status FROM video_data WHERE id = ?", (video_id,))
+    record = cursor.fetchone()
+    cursor.close()
+    conn.close()
+
+    if not record:
+        raise HTTPException(status_code=404, detail=f"Video with ID {video_id} not found")
+
+    return {"video_id": record[0], "status": record[1]}
+
+
+@app.post("/videos/latest/process")
+async def process_latest_video_endpoint(background_tasks: BackgroundTasks):
+    conn = init_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id, video_path FROM video_data ORDER BY id DESC LIMIT 1"
+        )
+        video_record = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
+
+    if not video_record:
+        raise HTTPException(status_code=404, detail="No uploaded videos found")
+
+    video_id, video_path = video_record
+    background_tasks.add_task(process_and_track_video, video_path, video_id)
+
+    return {
+        "message": "Video processing has started in the background",
+        "video_id": video_id,
+        "video_path": video_path,
+    }
 
 
 @app.post("/videos/{video_id}/process")
@@ -61,7 +107,9 @@ async def process_video_endpoint(video_id: int, background_tasks: BackgroundTask
         "SELECT video_path FROM video_data WHERE id = ?", 
         (video_id,)
     )
+    
     video_record = cursor.fetchone()
+
     
     # Always close database resources when done reading
     cursor.close()
@@ -88,5 +136,36 @@ async def process_video_endpoint(video_id: int, background_tasks: BackgroundTask
     }
 
 
+@app.get('/status')
+async def status():
+    conn = init_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT status FROM video_data ORDER BY id DESC LIMIT 1"
+        )
+        status_record = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
 
+    return{
+        'status':status_record
+    }
+    
+@app.get('/track_logs')
+async def track_logs():
+    conn = init_db()
+    cursor = conn.cursor()
+    try:
+        cursor.execute(
+            "SELECT id, track_id, video_id, object_name, enter_time, last_seen FROM track_logs ORDER BY id DESC LIMIT 10"
+        )
+        track_record = cursor.fetchall()
+    finally:
+        cursor.close()
+        conn.close()
+    
+    if not track_record:
+        raise HTTPException(status_code=404, detail="No track record found")
     

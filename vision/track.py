@@ -45,18 +45,36 @@ def track_objects_store(detections, class_name, cap, video_id, frame_count, stat
                 state.seen_objects.add(track_id)
                 state.enter_time[track_id] = timestamp
                 state.conn.execute("""
-                    INSERT INTO track_logs (track_id, video_id, class_id, object_name, enter_time, x1, y1, x2, y2)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO track_logs (
+                        track_id, video_id, class_id, object_name, enter_time,
+                        last_seen, x1, y1, x2, y2
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     track_id,
                     int(video_id),
                     int(class_id),
                     object_name,
                     state.enter_time[track_id],
+                    timestamp,
                     x1,
                     y1,
                     x2,
                     y2,
+                ))
+            else:
+                state.conn.execute("""
+                    UPDATE track_logs
+                    SET last_seen = ?, x1 = ?, y1 = ?, x2 = ?, y2 = ?
+                    WHERE video_id = ? AND track_id = ?
+                """, (
+                    timestamp,
+                    x1,
+                    y1,
+                    x2,
+                    y2,
+                    int(video_id),
+                    track_id,
                 ))
 
     state.conn.commit()

@@ -10,8 +10,9 @@ def init_db(db_name="intelligent_video_search.db"):
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             video_path TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-            duration INTEGER,
-            fps REAL
+            duration TEXT,
+            fps TEXT,
+            status TEXT NOT NULL DEFAULT 'pending'
         )
     ''')
     conn.execute("PRAGMA foreign_keys = ON")
@@ -23,10 +24,15 @@ def init_db(db_name="intelligent_video_search.db"):
                 class_id REAL,
                 object_name TEXT,
                 enter_time DATETIME,
-                last_seen DATETIME,
+                last_seen  DATETIME,
                 x1 REAL, y1 REAL, x2 REAL, y2 REAL
             )
         """)
+    track_log_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(track_logs)")
+    }
+    if "last_seen" not in track_log_columns:
+        conn.execute("ALTER TABLE track_logs ADD COLUMN last_seen DATETIME")
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("""
             CREATE TABLE IF NOT EXISTS speed_Event (

@@ -1,9 +1,28 @@
 from detector import process_video
 from track import TrackingState, track_objects_store
+from database import init_db
+
+
+conn = init_db
+status_state = {
+    "status": "processing"
+}
+
+
+def _update_status(video_id, **kwargs):
+    conn = init_db()
+    try:
+        updates = ", ".join(f"{key} = ?" for key in kwargs)
+        values = list(kwargs.values()) + [video_id]
+        conn.execute(f"UPDATE video_data SET {updates} WHERE id = ?", values)
+        conn.commit()
+    finally:
+        conn.close()
 
 
 
-def process_and_track_video(video_path,video_id):
+def process_and_track_video(video_path, video_id):
+    _update_status(video_id, status="processing")
     state = TrackingState()
 
     def track_frame(detections, class_name, cap, frame_count):
@@ -19,5 +38,6 @@ def process_and_track_video(video_path,video_id):
     try:
         process_video(video_path, track_frame)
     finally:
+        _update_status(video_id, status="completed")
         state.conn.close()
-    
+        print('Done Processing')

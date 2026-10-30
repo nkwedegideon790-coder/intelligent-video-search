@@ -22,22 +22,27 @@ def _update_status(video_id, **kwargs):
 
 
 def process_and_track_video(video_path, video_id):
-    _update_status(video_id, status="processing")
-    state = TrackingState()
-
-    def track_frame(detections, class_name, cap, frame_count):
-        track_objects_store(
-            detections,
-            class_name,
-            cap,
-            video_id,
-            frame_count,
-            state,
-        )
-
+    state = None
     try:
+        _update_status(video_id, status="processing")
+        state = TrackingState()
+
+        def track_frame(detections, class_name, cap, frame_count):
+            track_objects_store(
+                detections,
+                class_name,
+                cap,
+                video_id,
+                frame_count,
+                state,
+            )
+
         process_video(video_path, track_frame)
+    except Exception:
+        _update_status(video_id, status="failed")
+        raise
     finally:
-        _update_status(video_id, status="completed")
-        state.conn.close()
-        print('Done Processing')
+        if state is not None:
+            state.conn.close()
+
+    _update_status(video_id, status="completed")

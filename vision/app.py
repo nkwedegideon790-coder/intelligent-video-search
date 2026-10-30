@@ -29,7 +29,7 @@ def Video_logs(video_path: str, duration: float, fps: float) -> int:
     conn.commit()
     return video_id, duration, fps
 @app.post("/upload_video")
-async def upload_file(file: UploadFile, limit: int):
+async def upload_file(file: UploadFile):
     save_Dir = "uploaded_files"
     # creats the directory if it does not exist
     if not os.path.exists(save_Dir):
@@ -168,4 +168,7 @@ async def track_logs():
     
     if not track_record:
         raise HTTPException(status_code=404, detail="No track record found")
+    return{
+        'tracks':track_record
+    }
     

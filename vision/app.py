@@ -17,17 +17,17 @@ async def root():
 conn = init_db()
 cursor = conn.cursor()
 
-def Video_logs(video_path: str, duration: float, fps: float) -> int:
+def Video_logs(Filename: str, video_path: str, duration: float, fps: float) -> int:
     """
     Registers the video in the database and returns the generated video_id.
     """
     cursor.execute('''
-        INSERT INTO video_data (video_path, duration, fps, status)
-        VALUES (?, ?, ?, 'pending')
-    ''', (video_path, duration, fps))
+        INSERT INTO video_data (Filename, video_path, duration, fps, status)
+        VALUES (?, ?, ?, ?, 'pending')
+    ''', (Filename, video_path, duration, fps))
     video_id = cursor.lastrowid
     conn.commit()
-    return video_id, duration, fps
+    return Filename, video_id, duration, fps
 @app.post("/upload_video")
 async def upload_file(file: UploadFile):
     save_Dir = "uploaded_files"
@@ -35,21 +35,24 @@ async def upload_file(file: UploadFile):
     if not os.path.exists(save_Dir):
         os.makedirs(save_Dir)
     video_path = os.path.join(save_Dir, file.filename)
+    
 
     with open(video_path, "wb") as f:
         content = await file.read()
         f.write(content)
-
+    Filename = file.filename
     cap = cv2.VideoCapture(video_path)
     fps = cap.get(cv2.CAP_PROP_FPS) or 30.0  # Fallback to 30 if metadata read fails
     total_frames = cap.get(cv2.CAP_PROP_FRAME_COUNT)
     duration = total_frames / fps if fps > 0 else 0
+    
 
-    video_id, duration, fps = Video_logs(video_path, duration, fps)
+    Filename, video_id, duration, fps = Video_logs(Filename, video_path, duration, fps)
     return {
         "video_id": video_id,
         "duration": duration,
         "fps": fps,
+        'filename':Filename,
         "video_path": video_path,
         "status": "pending",
     }
@@ -142,16 +145,17 @@ async def status():
     cursor = conn.cursor()
     try:
         cursor.execute(
-            "SELECT status FROM video_data ORDER BY id DESC LIMIT 1"
+            "SELECT status, progress FROM video_data ORDER BY id DESC LIMIT 1"
         )
         status_record = cursor.fetchone()
     finally:
         cursor.close()
         conn.close()
 
-    return{
-        'status':status_record
-    }
+    if not status_record:
+        raise HTTPException(status_code=404, detail="No uploaded videos found")
+
+    return {"status": status_record[0], "progress": status_record[1]}
     
 @app.get('/track_logs')
 async def track_logs():

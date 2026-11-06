@@ -8,13 +8,22 @@ def init_db(db_name="intelligent_video_search.db"):
     conn.execute('''
         CREATE TABLE IF NOT EXISTS video_data (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            Filename TEXT NOT NULL,
             video_path TEXT NOT NULL,
             timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
             duration TEXT,
             fps TEXT,
-            status TEXT NOT NULL DEFAULT 'pending'
+            status TEXT NOT NULL DEFAULT 'pending',
+            progress INTEGER NOT NULL DEFAULT 0
         )
     ''')
+    video_data_columns = {
+        row[1] for row in conn.execute("PRAGMA table_info(video_data)")
+    }
+    if "progress" not in video_data_columns:
+        conn.execute(
+            "ALTER TABLE video_data ADD COLUMN progress INTEGER NOT NULL DEFAULT 0"
+        )
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("""
             CREATE TABLE IF NOT EXISTS track_logs (

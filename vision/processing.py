@@ -24,7 +24,7 @@ def _update_status(video_id, **kwargs):
 def process_and_track_video(video_path, video_id):
     state = None
     try:
-        _update_status(video_id, status="processing")
+        _update_status(video_id, status="processing", progress=0)
         state = TrackingState()
 
         def track_frame(detections, class_name, cap, frame_count):
@@ -37,7 +37,11 @@ def process_and_track_video(video_path, video_id):
                 state,
             )
 
-        process_video(video_path, track_frame)
+        process_video(
+            video_path,
+            track_frame,
+            lambda progress: _update_status(video_id, progress=progress),
+        )
     except Exception:
         _update_status(video_id, status="failed")
         raise
@@ -45,4 +49,4 @@ def process_and_track_video(video_path, video_id):
         if state is not None:
             state.conn.close()
 
-    _update_status(video_id, status="completed")
+    _update_status(video_id, status="completed", progress=100)

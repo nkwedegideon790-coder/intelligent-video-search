@@ -51,7 +51,7 @@ def _request(method: str, path: str, *, timeout: float = 20, **kwargs: Any) -> A
 def health() -> dict:
     return _request("GET", "/health", timeout=6)
 
-def stats():
+def stats() -> dict[str, Any]:
     return _request("GET", "/status")
 
 def tracklogs() -> dict:

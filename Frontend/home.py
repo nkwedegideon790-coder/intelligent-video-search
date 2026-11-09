@@ -1,12 +1,27 @@
 import streamlit as st
 import time
 from api_client import APIError, process_video, upload_video, stats
-
+from vision.database import init_db
+from datetime import timezone,datetime
 st.set_page_config(page_title="INTELLIGENT VIDEO SEARCH", page_icon="🔎", layout="wide")
 st.title("INTELLIGENT VIDEO SEARCH")
 
 upload_col, status_col = st.columns([2, 1])
 lastest_frame_col, vid_details_col = st.columns([2, 1])
+table_placeholder = st.empty()
+conn = init_db()
+def get_recent_rows():
+    try:
+        read_conn = conn
+        read_cursor = read_conn.cursor()
+        read_cursor.execute(
+            "SELECT id,track_id,object_name FROM track_logs ORDER BY id DESC LIMIT 5"
+        )
+        rows = read_cursor.fetchall()
+        read_conn.close()
+        return rows
+    except conn.Error:
+        return []
 
 with upload_col:
     with st.container(border=True):
@@ -22,8 +37,7 @@ with upload_col:
                     st.session_state["filename"] = result["filename"]
                     st.session_state["processing_requested"] = False
                     st.success("Video uploaded successfully.")
-
-                    
+                
             except APIError as exc:
                 st.error(f"Upload failed: {exc.message}")
 
@@ -33,6 +47,8 @@ with status_col:
         video_id = st.session_state.get("video_id")
         video_path = st.session_state.get("video_path")
         filename = st.session_state.get('filename')
+        now = datetime.now(timezone.utc).isoformat()
+
         if video_id is not None:
             if st.button("Process video", icon=":material/play_arrow:"):
                 try:
@@ -80,14 +96,24 @@ with status_col:
 with lastest_frame_col:
     with st.container (border=True):
         st.subheader('Lastest video preview')
-
-
+        live_rows = get_recent_rows()
+        while True:
+            if live_rows:
+                table_data = [
+                    {
+                        "id": row[1], "track_id": row[2], "object_name": row[3]
+                    } for row in live_rows
+                ]
+                table_placeholder.table(table_data)
+            time.sleep(2)
 
 with vid_details_col:
     with st.container(border=True):
-        st.subheader('video details')
-        st.caption(f'video_id : {video_id}')
-        st.caption(f'Filepath : {video_path}')
-        st.caption(f'Filename: {filename}')
+        if video is not None:
+            st.subheader('video details')
+            st.caption(f'video_id : {video_id}')
+            st.caption(f'Filepath : {video_path}')
+            st.caption(f'Filename: {filename}')
+            st.caption(f'Uploaded at: {now}')
 
         

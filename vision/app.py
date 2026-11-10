@@ -1,6 +1,5 @@
 # uvicorn app:app --reload
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi import APIRouter, UploadFile
+from fastapi import FastAPI, HTTPException, BackgroundTasks, UploadFile
 from database import init_db
 from processing import process_and_track_video
 import os
@@ -62,15 +61,20 @@ async def upload_file(file: UploadFile):
 async def get_video_status(video_id: int):
     conn = init_db()
     cursor = conn.cursor()
-    cursor.execute("SELECT id, status FROM video_data WHERE id = ?", (video_id,))
-    record = cursor.fetchone()
-    cursor.close()
-    conn.close()
+    try:
+        cursor.execute(
+            "SELECT id, status, progress FROM video_data WHERE id = ?",
+            (video_id,),
+        )
+        record = cursor.fetchone()
+    finally:
+        cursor.close()
+        conn.close()
 
     if not record:
         raise HTTPException(status_code=404, detail=f"Video with ID {video_id} not found")
 
-    return {"video_id": record[0], "status": record[1]}
+    return {"video_id": record[0], "status": record[1], "progress": record[2]}
 
 
 @app.post("/videos/latest/process")
@@ -170,9 +174,6 @@ async def track_logs():
         cursor.close()
         conn.close()
     
-    if not track_record:
-        raise HTTPException(status_code=404, detail="No track record found")
     return{
         'tracks':track_record
     }
-    

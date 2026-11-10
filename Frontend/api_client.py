@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from typing import Any, Optional
+from typing import Any
 
 import requests
 
@@ -35,7 +35,7 @@ def _request(method: str, path: str, *, timeout: float = 20, **kwargs: Any) -> A
     except requests.exceptions.Timeout as exc:
         raise APIError("The request took too long. Please try again.", "timeout") from exc
     except requests.exceptions.RequestException as exc:
-        raise APIError("We can't reach the ScamLens service right now. Check that the backend is running.",
+        raise APIError("We can't reach the Intelligent video search service right now. Check that the backend is running.",
                        "unreachable") from exc
     if resp.status_code >= 400:
         try:
@@ -51,14 +51,14 @@ def _request(method: str, path: str, *, timeout: float = 20, **kwargs: Any) -> A
 def health() -> dict:
     return _request("GET", "/health", timeout=6)
 
-def stats() -> dict[str, Any]:
-    return _request("GET", "/status")
+def stats(video_id: int) -> dict[str, Any]:
+    return _request("GET", f"/videos/{video_id}/status", timeout=6)
 
-def tracklogs() -> dict:
-    return _request("GET", "/track_logs")
+def tracklogs() -> dict[str, Any]:
+    return _request("GET", "/track_logs", timeout=6)
 
 def upload_video(file):
     return _request("POST", "/upload_video", timeout=60, files={"file": (file.name, file.getvalue(), file.type)})
 
-def process_video():
-    return _request("POST", "/videos/latest/process" )
+def process_video(video_id: int) -> dict[str, Any]:
+    return _request("POST", f"/videos/{video_id}/process")
